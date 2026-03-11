@@ -15,7 +15,7 @@ type EmotionKey =
 interface EmotionConfidence {
   emotion: EmotionKey
   label: string
-  confidence: number
+  confidence: number // 0–100
 }
 
 interface AIResult {
@@ -33,6 +33,8 @@ interface DiaryEntry {
   result: AIResult
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const EMOTION_ICON_MAP: Record<EmotionKey, string> = {
   joy:      '😊',
   sad:      '🥺',
@@ -44,20 +46,30 @@ const EMOTION_ICON_MAP: Record<EmotionKey, string> = {
   anxiety:  '😟',
 }
 
+// ─── Hook: Typing Animation ───────────────────────────────────────────────────
+
 function useTypingAnimation() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const startTyping = useCallback(
-    (text: string, onChar: (partial: string, done: boolean) => void, speedMs = 30) => {
+    (
+      text: string,
+      onChar: (partial: string, done: boolean) => void,
+      speedMs = 30,
+    ) => {
       if (timerRef.current) clearTimeout(timerRef.current)
       let index = 0
+
       const tick = () => {
         index += 1
         const partial = text.slice(0, index)
         const done = index >= text.length
         onChar(partial, done)
-        if (!done) timerRef.current = setTimeout(tick, speedMs)
+        if (!done) {
+          timerRef.current = setTimeout(tick, speedMs)
+        }
       }
+
       timerRef.current = setTimeout(tick, speedMs)
     },
     [],
@@ -69,6 +81,8 @@ function useTypingAnimation() {
 
   return { startTyping, cancel }
 }
+
+// ─── Emotion mapping (Korean label → EmotionKey) ─────────────────────────────
 
 const KOREAN_TO_EMOTION_KEY: Record<string, EmotionKey> = {
   '기쁨':   'joy',
@@ -82,6 +96,8 @@ const KOREAN_TO_EMOTION_KEY: Record<string, EmotionKey> = {
   '무기력': 'neutral',
   '후회':   'disgust',
 }
+
+// ─── handleSubmit ─────────────────────────────────────────────────────────────
 
 async function handleSubmit(text: string): Promise<AIResult> {
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY as string
@@ -111,6 +127,8 @@ async function handleSubmit(text: string): Promise<AIResult> {
 function displayResult(_result: AIResult, _text: string): void { /* no-op */ }
 function addToDiaryList(_text: string, _result: AIResult): void { /* no-op */ }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 interface EmotionBadgeProps {
   emotion: EmotionKey
   label: string
@@ -119,7 +137,10 @@ interface EmotionBadgeProps {
 
 function EmotionBadge({ emotion, label, icon }: EmotionBadgeProps) {
   return (
-    <span className={`emotion-badge emotion-badge--${emotion}`} aria-label={`감정: ${label}`}>
+    <span
+      className={`emotion-badge emotion-badge--${emotion}`}
+      aria-label={`감정: ${label}`}
+    >
       {icon && <span aria-hidden="true">{icon}</span>}
       {label}
     </span>
@@ -142,9 +163,14 @@ function ConfidenceBar({ item }: ConfidenceBarProps) {
         aria-valuemax={100}
         aria-label={`${item.label} 신뢰도`}
       >
-        <div className="confidence-bar-fill" style={{ width: `${item.confidence}%` }} />
+        <div
+          className="confidence-bar-fill"
+          style={{ width: `${item.confidence}%` }}
+        />
       </div>
-      <span className="confidence-item__pct" aria-hidden="true">{item.confidence}%</span>
+      <span className="confidence-item__pct" aria-hidden="true">
+        {item.confidence}%
+      </span>
     </li>
   )
 }
@@ -162,7 +188,9 @@ function DiaryEntryCard({ entry }: DiaryEntryCardProps) {
           label={entry.result.emotionLabel}
           icon={EMOTION_ICON_MAP[entry.result.primaryEmotion]}
         />
-        <time className="diary-entry__time" dateTime={entry.id}>{entry.time}</time>
+        <time className="diary-entry__time" dateTime={entry.id}>
+          {entry.time}
+        </time>
       </header>
       <p className="diary-entry__text">{entry.text}</p>
       <p className="diary-entry__ai-reply">{entry.result.message}</p>
@@ -170,7 +198,10 @@ function DiaryEntryCard({ entry }: DiaryEntryCardProps) {
   )
 }
 
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
 export default function App() {
+  // ── State ──────────────────────────────────────────────────────────────────
   const [inputText, setInputText]       = useState('')
   const [isLoading, setIsLoading]       = useState(false)
   const [aiResult, setAiResult]         = useState<AIResult | null>(null)
@@ -182,23 +213,36 @@ export default function App() {
   const { startTyping, cancel } = useTypingAnimation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // ── Derived ────────────────────────────────────────────────────────────────
   const today = new Date()
   const dateLabel = today.toLocaleDateString('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
   })
 
-  const handleTextareaInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value)
-  }, [])
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleTextareaInput = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInputText(e.target.value)
+    },
+    [],
+  )
 
+  // Stable ref so handleKeyDown does not depend on onSubmit identity
   const onSubmitRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault()
-      void onSubmitRef.current?.()
-    }
-  }, [])
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Ctrl/Cmd + Enter to submit
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        void onSubmitRef.current?.()
+      }
+    },
+    [],
+  )
 
   const onSubmit = useCallback(async () => {
     const trimmed = inputText.trim()
@@ -212,19 +256,29 @@ export default function App() {
     setErrorMessage(null)
 
     try {
+      // ── Hook point: replace handleSubmit with real logic ──
       const result = await handleSubmit(trimmed)
-      displayResult(result, trimmed)
+
+      displayResult(result, trimmed)      // hook point
+
       setAiResult(result)
       setIsTyping(true)
+
       startTyping(result.message, (partial, done) => {
         setTypedMessage(partial)
         if (done) setIsTyping(false)
       })
-      addToDiaryList(trimmed, result)
+
+      // ── Hook point: add to list ──
+      addToDiaryList(trimmed, result)     // hook point
+
       const entry: DiaryEntry = {
         id:   new Date().toISOString(),
         text: trimmed,
-        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        time: new Date().toLocaleTimeString('ko-KR', {
+          hour:   '2-digit',
+          minute: '2-digit',
+        }),
         result,
       }
       setDiaryEntries(prev => [entry, ...prev])
@@ -238,31 +292,73 @@ export default function App() {
     }
   }, [inputText, isLoading, cancel, startTyping])
 
+  // Keep ref in sync so handleKeyDown always calls the latest onSubmit
   onSubmitRef.current = onSubmit
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="app">
-      <a href="#main-content" className="sr-only"
-        style={{ position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden' }}
-        onFocus={e => { const el = e.currentTarget; el.style.left = '1rem'; el.style.width = 'auto'; el.style.height = 'auto'; }}
-        onBlur={e => { const el = e.currentTarget; el.style.left = '-9999px'; el.style.width = '1px'; el.style.height = '1px'; }}
+      {/* ── Skip Navigation ── */}
+      <a
+        href="#main-content"
+        className="sr-only"
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: 'auto',
+          width: '1px',
+          height: '1px',
+          overflow: 'hidden',
+        }}
+        onFocus={e => {
+          const el = e.currentTarget
+          el.style.left = '1rem'
+          el.style.width = 'auto'
+          el.style.height = 'auto'
+        }}
+        onBlur={e => {
+          const el = e.currentTarget
+          el.style.left = '-9999px'
+          el.style.width = '1px'
+          el.style.height = '1px'
+        }}
       >
         본문으로 건너뛰기
       </a>
 
+      {/* ── Header ── */}
       <header className="app-header" role="banner">
         <h1 className="app-header__title">
           오늘의 일기
-          <span className="app-header__title-emoji" role="img" aria-label="연필">✏️</span>
+          <span
+            className="app-header__title-emoji"
+            role="img"
+            aria-label="연필"
+          >
+            ✏️
+          </span>
         </h1>
-        <time className="app-header__date" dateTime={today.toISOString()}>{dateLabel}</time>
+        <time className="app-header__date" dateTime={today.toISOString()}>
+          {dateLabel}
+        </time>
       </header>
 
+      {/* ── Main ── */}
       <main id="main-content" className="app-main">
-        <section className="card input-section" aria-labelledby="input-section-label">
-          <label id="input-section-label" className="input-section__label" htmlFor="diary-input">
+
+        {/* Input Section */}
+        <section
+          className="card input-section"
+          aria-labelledby="input-section-label"
+        >
+          <label
+            id="input-section-label"
+            className="input-section__label"
+            htmlFor="diary-input"
+          >
             오늘의 이야기
           </label>
+
           <textarea
             id="diary-input"
             ref={textareaRef}
@@ -276,9 +372,18 @@ export default function App() {
             aria-describedby="input-hint"
             disabled={isLoading}
           />
-          <p id="input-hint" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'right', marginTop: '-0.5rem' }}>
+          <p
+            id="input-hint"
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--color-text-muted)',
+              textAlign: 'right',
+              marginTop: '-0.5rem',
+            }}
+          >
             {inputText.length}/500 · Ctrl+Enter로 전송
           </p>
+
           <button
             type="button"
             className="submit-btn"
@@ -287,26 +392,46 @@ export default function App() {
             aria-busy={isLoading}
           >
             {isLoading ? (
-              <><span className="spinner" aria-hidden="true" />분석 중...</>
+              <>
+                <span className="spinner" aria-hidden="true" />
+                분석 중...
+              </>
             ) : (
-              <><span className="submit-btn__icon" aria-hidden="true">💌</span>AI에게 보내기</>
+              <>
+                <span className="submit-btn__icon" aria-hidden="true">
+                  💌
+                </span>
+                따뜻한 공감받기
+              </>
             )}
           </button>
         </section>
 
-        <div className={`card loading-card${isLoading ? ' is-visible' : ''}`}
-          role="status" aria-live="polite" aria-label="AI가 감정을 분석하고 있습니다">
+        {/* Loading Card */}
+        <div
+          className={`card loading-card${isLoading ? ' is-visible' : ''}`}
+          role="status"
+          aria-live="polite"
+          aria-label="AI가 감정을 분석하고 있습니다"
+        >
           <div className="loading-card__spinner" aria-hidden="true" />
-          <p className="loading-card__text">AI가 감정을 분석하고 있어요...</p>
+          <p className="loading-card__text">
+            AI가 감정을 분석하고 있어요...
+          </p>
         </div>
 
+        {/* Error Message */}
         {errorMessage && (
-          <div role="alert" className="card"
-            style={{ color: 'var(--color-text)', borderLeft: '3px solid #e57373', padding: 'var(--space-md)' }}>
+          <div
+            role="alert"
+            className="card"
+            style={{ color: 'var(--color-text)', borderLeft: '3px solid #e57373', padding: 'var(--space-md)' }}
+          >
             <p>⚠️ {errorMessage}</p>
           </div>
         )}
 
+        {/* AI Response Area */}
         <section
           id="response-area"
           className={`card response-area${aiResult ? ' is-visible' : ''}`}
@@ -315,16 +440,34 @@ export default function App() {
         >
           {aiResult && (
             <>
-              <p className="section-label" id="response-heading">AI의 공감 메시지</p>
+              <p className="section-label" id="response-heading">
+                AI의 공감 메시지
+              </p>
+
+              {/* Emotion Row */}
               <div className="response-area__emotion-row">
-                <span className="emotion-icon" role="img" aria-label={aiResult.emotionLabel}>
+                <span
+                  className="emotion-icon"
+                  role="img"
+                  aria-label={aiResult.emotionLabel}
+                >
                   {aiResult.emotionIcon}
                 </span>
-                <EmotionBadge emotion={aiResult.primaryEmotion} label={aiResult.emotionLabel} />
+                <EmotionBadge
+                  emotion={aiResult.primaryEmotion}
+                  label={aiResult.emotionLabel}
+                />
               </div>
-              <p className={`ai-message${isTyping ? ' is-typing' : ''}`} aria-label={`AI 메시지: ${aiResult.message}`}>
+
+              {/* Typing Message */}
+              <p
+                className={`ai-message${isTyping ? ' is-typing' : ''}`}
+                aria-label={`AI 메시지: ${aiResult.message}`}
+              >
                 {typedMessage}
               </p>
+
+              {/* Confidence Bars */}
               <div style={{ marginTop: 'var(--space-md)' }}>
                 <p className="section-label">감정 분석 결과</p>
                 <ul className="confidence-list" aria-label="감정 신뢰도 목록">
@@ -337,22 +480,39 @@ export default function App() {
           )}
         </section>
 
+        {/* Diary List Section */}
         <section aria-labelledby="diary-list-heading">
           <div className="diary-section__heading">
             <h2 id="diary-list-heading">오늘 쓴 일기</h2>
             {diaryEntries.length > 0 && (
-              <span className="diary-section__count" aria-label={`총 ${diaryEntries.length}개`}>
+              <span
+                className="diary-section__count"
+                aria-label={`총 ${diaryEntries.length}개`}
+              >
                 {diaryEntries.length}
               </span>
             )}
           </div>
+
           {diaryEntries.length === 0 ? (
             <div className="diary-list__empty" role="status">
-              <span className="diary-list__empty-icon" role="img" aria-label="공책">📓</span>
-              아직 쓴 일기가 없어요.<br />오늘 있었던 일을 위에 적어보세요.
+              <span
+                className="diary-list__empty-icon"
+                role="img"
+                aria-label="공책"
+              >
+                📓
+              </span>
+              아직 쓴 일기가 없어요.
+              <br />
+              오늘 있었던 일을 위에 적어보세요.
             </div>
           ) : (
-            <ul id="diary-list" className="diary-list" aria-label="오늘의 일기 목록">
+            <ul
+              id="diary-list"
+              className="diary-list"
+              aria-label="오늘의 일기 목록"
+            >
               {diaryEntries.map(entry => (
                 <DiaryEntryCard key={entry.id} entry={entry} />
               ))}
@@ -361,6 +521,7 @@ export default function App() {
         </section>
       </main>
 
+      {/* ── Footer ── */}
       <footer className="app-footer" role="contentinfo">
         <p>오늘도 수고했어요 &nbsp;🤍</p>
       </footer>
