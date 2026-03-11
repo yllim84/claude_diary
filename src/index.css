@@ -1,0 +1,86 @@
+/* =========================================================
+   Global Reset & Design Tokens
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:wght@600&display=swap');
+
+:root {
+  --color-bg:           #FBF7F0;
+  --color-bg-alt:       #F5EFE6;
+  --color-card:         #FFFFFF;
+  --color-point:        #E8837A;
+  --color-point-hover:  #D96B62;
+  --color-point-light:  #FAE8E7;
+  --color-text-primary: #3D2B1F;
+  --color-text-muted:   #8C6F62;
+  --color-border:       #EDE0D5;
+  --color-shadow:       rgba(61, 43, 31, 0.08);
+  --color-shadow-md:    rgba(61, 43, 31, 0.13);
+
+  --badge-joy:         #FFF3CD;
+  --badge-joy-text:    #856404;
+  --badge-sad:         #D9EAF7;
+  --badge-sad-text:    #1A5276;
+  --badge-anger:       #FDDEDE;
+  --badge-anger-text:  #922B21;
+  --badge-fear:        #E8DAEF;
+  --badge-fear-text:   #6C3483;
+  --badge-surprise:    #D5F5E3;
+  --badge-surprise-text: #1E8449;
+  --badge-disgust:     #D6EAF8;
+  --badge-disgust-text: #1B4F72;
+  --badge-neutral:     #ECF0F1;
+  --badge-neutral-text: #5D6D7E;
+  --badge-anxiety:     #FEF9E7;
+  --badge-anxiety-text: #7D6608;
+
+  --font-body:    'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 3rem;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-full: 9999px;
+
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow:   400ms ease;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
