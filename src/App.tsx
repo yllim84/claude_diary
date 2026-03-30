@@ -2,6 +2,8 @@ import { useRef, useCallback, useState } from 'react'
 import './App.css'
 import { analyzeEmotion } from './emotionAnalyzer.js'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type EmotionKey =
   | 'joy'
   | 'sad'
@@ -401,7 +403,7 @@ export default function App() {
                 <span className="submit-btn__icon" aria-hidden="true">
                   💌
                 </span>
-                따뜻한 공감받기
+                공감해줘!
               </>
             )}
           </button>
