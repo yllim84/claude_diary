@@ -129,6 +129,23 @@ async function handleSubmit(text: string): Promise<AIResult> {
 function displayResult(_result: AIResult, _text: string): void { /* no-op */ }
 function addToDiaryList(_text: string, _result: AIResult): void { /* no-op */ }
 
+// ─── Local Storage persistence ────────────────────────────────────────────────
+
+const STORAGE_KEY = 'diary_entries'
+
+function loadEntries(): DiaryEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as DiaryEntry[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveEntries(entries: DiaryEntry[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface EmotionBadgeProps {
@@ -209,7 +226,7 @@ export default function App() {
   const [aiResult, setAiResult]         = useState<AIResult | null>(null)
   const [typedMessage, setTypedMessage] = useState('')
   const [isTyping, setIsTyping]         = useState(false)
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([])
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>(loadEntries)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const { startTyping, cancel } = useTypingAnimation()
@@ -283,7 +300,11 @@ export default function App() {
         }),
         result,
       }
-      setDiaryEntries(prev => [entry, ...prev])
+      setDiaryEntries(prev => {
+        const next = [entry, ...prev]
+        saveEntries(next)
+        return next
+      })
       setInputText('')
       textareaRef.current?.focus()
     } catch (err) {
