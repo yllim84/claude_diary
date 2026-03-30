@@ -2,9 +2,13 @@
  * emotionAnalyzer.js
  * AI 공감 다이어리 - 감정 분석 모듈
  *
- * 브라우저 환경 전용
+ * 브라우저 환경 전용 (Node.js 불필요)
  * OpenRouter API + nvidia/llama-nemotron-embed-vl-1b-v2:free 임베딩 모델 사용
  */
+
+// ─────────────────────────────────────────────
+// 1. 감정 앵커 정의 (10가지 감정 × 대표 문장)
+// ─────────────────────────────────────────────
 
 const EMOTION_ANCHORS = {
   기쁨: "오늘 정말 행복하고 즐거운 하루였어. 기분이 너무 좋아서 웃음이 멈추지 않아.",
@@ -18,6 +22,11 @@ const EMOTION_ANCHORS = {
   무기력: "아무것도 하기 싫고 의욕이 전혀 없어. 그냥 멍하니 누워있고 싶어.",
   후회: "그때 그렇게 하지 말걸 그랬어. 다시 돌아갈 수 있다면 다르게 행동했을 텐데.",
 };
+
+// ─────────────────────────────────────────────
+// 2. 공감 메시지 템플릿 (감정당 3개)
+//    구조: 감정 인정 → 공감 → 긍정적 시각 제시
+// ─────────────────────────────────────────────
 
 const EMPATHY_MESSAGES = {
   기쁨: [
@@ -72,65 +81,130 @@ const EMPATHY_MESSAGES = {
   ],
 };
 
+// ─────────────────────────────────────────────
+// 3. 코사인 유사도 계산 함수
+// ─────────────────────────────────────────────
+
+/**
+ * 두 임베딩 벡터 사이의 코사인 유사도를 계산합니다.
+ * @param {number[]} vecA - 첫 번째 벡터
+ * @param {number[]} vecB - 두 번째 벡터
+ * @returns {number} -1 ~ 1 사이의 코사인 유사도 값
+ */
 function cosineSimilarity(vecA, vecB) {
   if (vecA.length !== vecB.length) {
-    throw new Error(`벡터 차원 불일치: vecA(${vecA.length}) vs vecB(${vecB.length})`);
+    throw new Error(
+      `벡터 차원 불일치: vecA(${vecA.length}) vs vecB(${vecB.length})`
+    );
   }
-  let dotProduct = 0, normA = 0, normB = 0;
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
   for (let i = 0; i < vecA.length; i++) {
     dotProduct += vecA[i] * vecB[i];
     normA += vecA[i] * vecA[i];
     normB += vecB[i] * vecB[i];
   }
+
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+
+  // 영벡터(zero vector) 방어 처리
   if (denominator === 0) return 0;
+
   return dotProduct / denominator;
 }
 
+// ─────────────────────────────────────────────
+// 4. OpenRouter 임베딩 API 호출 함수
+// ─────────────────────────────────────────────
+
+/**
+ * OpenRouter 임베딩 API를 호출하여 텍스트의 임베딩 벡터를 반환합니다.
+ * @param {string} text - 임베딩할 텍스트
+ * @param {string} apiKey - OpenRouter API 키
+ * @returns {Promise<number[]>} 임베딩 벡터 배열
+ */
 async function fetchEmbedding(text, apiKey) {
-  const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
+  const OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings";
+  const MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
+
+  const response = await fetch(OPENROUTER_EMBEDDINGS_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      // OpenRouter 권장 헤더
       "HTTP-Referer": window.location.href,
-      "X-Title": "AI 공감 다이어리",
+      "X-Title": "AI Empathy Diary",
     },
     body: JSON.stringify({
-      model: "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+      model: MODEL,
       input: text,
     }),
   });
+
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`OpenRouter API 오류 [${response.status}]: ${errorBody}`);
+    throw new Error(
+      `OpenRouter API 오류 [${response.status}]: ${errorBody}`
+    );
   }
+
   const data = await response.json();
+
+  // OpenAI 호환 응답 형식: data.data[0].embedding
   if (!data.data || !data.data[0] || !data.data[0].embedding) {
-    throw new Error("API 응답에서 임베딩 벡터를 찾을 수 없습니다: " + JSON.stringify(data));
+    throw new Error(
+      "API 응답에서 임베딩 벡터를 찾을 수 없습니다: " +
+        JSON.stringify(data)
+    );
   }
+
   return data.data[0].embedding;
 }
 
+// ─────────────────────────────────────────────
+// 5. 공감 메시지 무작위 선택 헬퍼
+// ─────────────────────────────────────────────
+
+/**
+ * 해당 감정의 공감 메시지 템플릿 중 하나를 무작위로 선택합니다.
+ * @param {string} emotion - 감정 키
+ * @returns {string} 선택된 공감 메시지
+ */
 function pickEmpathyMessage(emotion) {
   const messages = EMPATHY_MESSAGES[emotion];
   if (!messages || messages.length === 0) {
     return "오늘도 솔직하게 마음을 털어놓아 줘서 고마워. 네 감정은 언제나 소중해.";
   }
-  return messages[Math.floor(Math.random() * messages.length)];
+  const randomIndex = Math.floor(Math.random() * messages.length);
+  return messages[randomIndex];
 }
 
-function normalizeConfidences(similarities) {
-  const scores = similarities.map((s) => s.confidence);
-  const maxScore = Math.max(...scores);
-  const expScores = scores.map((s) => Math.exp(s - maxScore));
-  const sumExp = expScores.reduce((acc, v) => acc + v, 0);
-  return similarities.map((s, i) => ({
-    emotion: s.emotion,
-    confidence: parseFloat((expScores[i] / sumExp).toFixed(4)),
-  }));
-}
+// ─────────────────────────────────────────────
+// 6. 감정 분석 메인 함수
+// ─────────────────────────────────────────────
 
+/**
+ * 일기 텍스트를 분석하여 감정과 공감 메시지를 반환합니다.
+ *
+ * 처리 흐름:
+ *   1. 사용자 일기 텍스트 임베딩 획득
+ *   2. 10개 감정 앵커 임베딩을 Promise.all로 병렬 획득
+ *   3. 코사인 유사도로 가장 가까운 감정 선택
+ *   4. 상위 3개 감정과 confidence 점수 포함하여 반환
+ *
+ * @param {string} diaryText - 분석할 일기 텍스트
+ * @param {string} apiKey - OpenRouter API 키
+ * @returns {Promise<{
+ *   emotion: string,
+ *   confidence: number,
+ *   top3: Array<{ emotion: string, confidence: number }>,
+ *   message: string
+ * }>}
+ */
 export async function analyzeEmotion(diaryText, apiKey) {
   if (!diaryText || diaryText.trim().length === 0) {
     throw new Error("일기 텍스트를 입력해주세요.");
@@ -138,21 +212,36 @@ export async function analyzeEmotion(diaryText, apiKey) {
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error("OpenRouter API 키를 입력해주세요.");
   }
+
   const emotionNames = Object.keys(EMOTION_ANCHORS);
   const anchorTexts = Object.values(EMOTION_ANCHORS);
+
+  // Step 1: 사용자 일기 임베딩 획득
   const diaryEmbedding = await fetchEmbedding(diaryText.trim(), apiKey);
+
+  // Step 2: 모든 감정 앵커 임베딩을 병렬로 획득
   const anchorEmbeddings = await Promise.all(
     anchorTexts.map((anchorText) => fetchEmbedding(anchorText, apiKey))
   );
+
+  // Step 3: 각 감정 앵커와의 코사인 유사도 계산
   const similarities = emotionNames.map((emotion, index) => ({
     emotion,
     confidence: cosineSimilarity(diaryEmbedding, anchorEmbeddings[index]),
   }));
+
+  // Step 4: 유사도 내림차순 정렬
   similarities.sort((a, b) => b.confidence - a.confidence);
+
+  // confidence 값을 0~1 범위로 정규화 (코사인 유사도는 -1~1이므로 가독성을 위해 변환)
   const normalized = normalizeConfidences(similarities);
+
   const topEmotion = normalized[0];
   const top3 = normalized.slice(0, 3);
+
+  // Step 5: 공감 메시지 선택
   const message = pickEmpathyMessage(topEmotion.emotion);
+
   return {
     emotion: topEmotion.emotion,
     confidence: topEmotion.confidence,
@@ -161,10 +250,47 @@ export async function analyzeEmotion(diaryText, apiKey) {
   };
 }
 
-export function getSupportedEmotions() {
+// ─────────────────────────────────────────────
+// 7. 유사도 정규화 헬퍼
+//    코사인 유사도(-1~1)를 0~1 범위의 confidence로 변환
+// ─────────────────────────────────────────────
+
+/**
+ * 코사인 유사도 배열을 softmax 방식으로 0~1 범위의 확률값으로 정규화합니다.
+ * @param {Array<{ emotion: string, confidence: number }>} similarities
+ * @returns {Array<{ emotion: string, confidence: number }>}
+ */
+function normalizeConfidences(similarities) {
+  // Softmax 적용 (수치 안정성을 위해 최댓값 빼기)
+  const scores = similarities.map((s) => s.confidence);
+  const maxScore = Math.max(...scores);
+
+  const expScores = scores.map((s) => Math.exp(s - maxScore));
+  const sumExp = expScores.reduce((acc, v) => acc + v, 0);
+
+  return similarities.map((s, i) => ({
+    emotion: s.emotion,
+    confidence: parseFloat((expScores[i] / sumExp).toFixed(4)),
+  }));
+}
+
+// ─────────────────────────────────────────────
+// 8. 유틸리티: 감정 목록 반환 (UI 용도)
+// ─────────────────────────────────────────────
+
+/**
+ * 지원하는 감정 이름 목록을 반환합니다.
+ * @returns {string[]}
+ */
+function getSupportedEmotions() {
   return Object.keys(EMOTION_ANCHORS);
 }
 
-export function getEmpathyMessages(emotion) {
+/**
+ * 특정 감정의 공감 메시지 전체 목록을 반환합니다. (프리뷰/테스트 용도)
+ * @param {string} emotion
+ * @returns {string[]}
+ */
+function getEmpathyMessages(emotion) {
   return EMPATHY_MESSAGES[emotion] || [];
 }
