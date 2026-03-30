@@ -53,6 +53,19 @@ src/
 - **ESLint 9** with TypeScript support
 - ES modules (`"type": "module"` in package.json)
 
+## Git 제외 규칙
+
+아래 항목은 프로젝트 구동과 무관한 로친 전용 파일이므로 `.gitignore`에 등록하여 git에 올리지 않습니다.
+
+| 경로 | 이유 |
+|------|------|
+| `.claude/` | Claude Code 로친 설정·훁 (개인 개발 환경 전용) |
+| `.env`, `.env.*` | API 키 등 민감 정보 |
+| `node_modules/` | 의존성 패키지 (설치로 복원 가능) |
+| `dist/`, `dist-ssr/` | 빌드 산출물 (빌드 명령으로 재생성 가능) |
+
+> 새로운 툴·에디터 전용 디렉토리가 생기면 동일하게 `.gitignore`에 추가하고 이 목록을 업데이트합니다.
+
 ## Commit Message Convention
 
 모든 커밋 메시지는 아래 형식을 따릅니다.
